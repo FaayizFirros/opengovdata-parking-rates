@@ -1,0 +1,32 @@
+name: Monthly URA carpark tariffs
+on:
+  schedule:
+    - cron: '20 0 1 * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: ura-monthly
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit test parser
+        run: python3 -m unittest discover -s tests -p 'test_*.py'
+      - name: Fetch server-side URA carpark details
+        env:
+          URA_ACCESS_KEY: ${{ secrets.URA_ACCESS_KEY }}
+        run: python3 scripts/sync_ura_parking.py
+      - name: Publish public JSON only
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- ura-carpark-rates.json
+          if ! git diff --cached --quiet; then
+            git commit -m "data: URA monthly carpark rate snapshot"
+            git push
+          fi
